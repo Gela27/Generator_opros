@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор опросов</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Генератор опросов</h1>
+            <p>Выберите функции генеративного интеллекта</p>
+        </header>
+
+        <main>
+            <div class="features-section">
+                <h3>Выберите функции GenAI:</h3>
+                <div class="features-grid">
+                    <label class="feature-checkbox">
+                        <input type="checkbox" value="write_questions" checked>
+                        <span>Написание вопросов для интервью</span>
+                    </label>
+                    <label class="feature-checkbox">
+                        <input type="checkbox" value="parse_data" checked>
+                        <span>Парсинг неструктурированных данных</span>
+                    </label>
+                    <label class="feature-checkbox">
+                        <input type="checkbox" value="extract_contacts" checked>
+                        <span>Извлечение контактов из корпуса текстов</span>
+                    </label>
+                    <label class="feature-checkbox">
+                        <input type="checkbox" value="create_tables" checked>
+                        <span>Создание таблиц из разных типов данных</span>
+                    </label>
+                    <label class="feature-checkbox">
+                        <input type="checkbox" value="extract_keywords" checked>
+                        <span>Извлечение ключевых слов</span>
+                    </label>
+                    <label class="feature-checkbox">
+                        <input type="checkbox" value="classify" checked>
+                        <span>Классификация данных по категориям</span>
+                    </label>
+                </div>
+
+                <div class="sentiment-section">
+                    <h3>Сентиментальный анализ текстов:</h3>
+                    <div class="sentiment-buttons">
+                        <label class="sentiment-option">
+                            <input type="radio" name="sentiment" value="sentiment_basic" checked>
+                            <span>Базовый анализ</span>
+                        </label>
+                        <label class="sentiment-option">
+                            <input type="radio" name="sentiment" value="sentiment_advanced">
+                            <span>Продвинутый анализ</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="button-group-actions">
+                    <button id="selectAllBtn" class="btn-secondary">Выбрать все</button>
+                    <button id="clearAllBtn" class="btn-secondary">Снять все</button>
+                </div>
+            </div>
+
+            <div class="input-section">
+                <div class="form-group">
+                    <label for="journey">Клиентский путь пользователя</label>
+                    <textarea id="journey" rows="5" placeholder="Пример: Пользователь зарегистрировался, пополнил счёт, пытался перевести деньги, страница зависла..."></textarea>
+                    <div class="char-counter"><span id="charCount">0</span>/2000 символов</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="categories">Категории для опроса (через запятую)</label>
+                    <input type="text" id="categories" placeholder="Пример: скорость, стабильность, поддержка" value="скорость, стабильность, поддержка, удобство">
+                </div>
+
+                <div class="button-group">
+                    <button id="generateBtn" class="btn-generate">Сгенерировать опрос</button>
+                    <button id="cancelBtn" class="btn-cancel" style="display: none;">Отмена</button>
+                </div>
+            </div>
+
+            <div id="loadingIndicator" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Генерация опроса может занять до 30 секунд...</p>
+            </div>
+
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+
+            <div id="outputSection" class="output-section" style="display: none;">
+                <div class="survey-header">
+                    <h2 id="surveyTitle"></h2>
+                </div>
+
+                <div id="surveyQuestions" class="survey-questions">
+                    <h3>Вопросы опроса</h3>
+                    <div id="questionsList"></div>
+                </div>
+
+                <div id="analysisResults" class="analysis-results" style="display: none;">
+                    <h3>Результаты анализа:</h3>
+                    <div id="analysisGrid" class="analysis-grid"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,107 +1,106 @@
-# библ для отправки запросов к LM St
 import requests
-#  для сбора ответов от модели
 import json
-import re  # добавлен для надёжного парсинга JSON
+import re
+from typing import List, Dict
+from analysis import (
+    extract_contacts, extract_keywords, parsing_unstructured_data,
+    create_tables_from_data, classify_by_categories,
+    sentiment_analysis_basic, sentiment_analysis_advanced
+)
 
-# Ад лок серв LM Studio
 LM_STUDIO_URL = "http://localhost:1234/v1/chat/completions"
 
 
-# Генерация опроса на основе клиент пути
-# user_journey описание действий польз в приложении
-# categories Список катег по которым нужно задать вопросы
-def generate_survey(user_journey: str, categories: list) -> dict:
-    # f-строка позволяет подст знач перем user_journey и categories
+def generate_personalized_survey(user_journey: str, categories: List[str], analysis_results: Dict) -> Dict:
+    """Генератор персонализированных опросов на основе клиентского пути"""
+
+    problems = analysis_results.get('parsed_data', {}).get('problems', [])
+    successes = analysis_results.get('parsed_data', {}).get('successes', [])
+    keywords = analysis_results.get('keywords', [])
+    sentiment = analysis_results.get('sentiment_basic', {}).get('sentiment', 'neutral')
+
     prompt = f"""
-Ты — генератор опросов удовлетворённости.
-Клиентский путь пользователя:
+Ты генератор персонализированных опросов. Проанализируй клиентский путь пользователя и создай вопросы.
+
+КЛИЕНТСКИЙ ПУТЬ:
 {user_journey}
-Категории для опроса: {', '.join(categories)}
 
-ВАЖНО: Верни ТОЛЬКО JSON. Никакого текста до или после JSON. Никаких пояснений.
+КАТЕГОРИИ ДЛЯ ОПРОСА: {', '.join(categories)}
 
-Сгенерируй опрос (3-5 вопросов). Формат — JSON строго как ниже:
-{{
-  "title": "Название опроса",
-  "questions": [
-    {{"text": "вопрос 1", "type": "rating", "category": "категория"}},
-    {{"text": "вопрос 2", "type": "open", "category": "категория"}}
-  ]
-}}
+РЕЗУЛЬТАТЫ АНАЛИЗА:
+- Проблемы: {problems}
+- Успехи: {successes}
+- Ключевые слова: {keywords[:5]}
+- Тональность: {sentiment}
 
-Допустимые типы вопросов: rating, open.
-Категория вопроса должна быть строго из списка: {', '.join(categories)}.
-Только JSON, без пояснений.
+Твоя задача - создать 3-5 ПЕРСОНАЛИЗИРОВАННЫХ вопросов, которые:
+1. Учитывают конкретные проблемы пользователя
+2. Спрашивают про то, что понравилось
+3. Предлагают улучшения на основе опыта
+
+Типы вопросов:
+- rating: оценка от 1 до 5
+- open: открытый вопрос
+
+Верни ТОЛЬКО JSON:
+{{"title": "Персонализированный опрос", "questions": [{{"text": "вопрос", "type": "rating", "category": "категория"}}]}}
+
+Вопросы должны быть КОНКРЕТНЫМИ под эту ситуацию!
 """
 
-    # полезн нагруз для отправки к LM Studio
-    load = {
-        "model": "local-model",  # имя модели
-        "messages": [  # Список сообщений для общ с моделью
-            {
-                "role": "system",  # Сист сообщ - задаёт роль модели
-                "content": "Ты помощник для создания опросов. Ты возвращаешь только валидный JSON без пояснений."
-            },
-            {
-                "role": "user",  # Сообщ от пользователя - сам запрос
-                "content": prompt
-            }
-        ],
-        "temperature": 0.7,  # Параметр креативност
-        "max_tokens": 1200  
+    payload = {
+        "model": "local-model",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.5,
+        "max_tokens": 800
     }
 
-    # json=load автоматически сериализует словарь в JSON и ставит header Content-Type
-    response = requests.post(LM_STUDIO_URL, json=load)
-
-    # Извлек текст ответа модели из JSON ответа сервера
-    raw_text = response.json()["choices"][0]["message"]["content"]
-
     try:
-        # Ищем позицию первого/посл символа '{'
-        start = raw_text.find('{')
-        end = raw_text.rfind('}') + 1
-
-        # Если нашли  начало/конец/начало раньше конца
-        if start != -1 and end > start:
-            # Извлекподстроку с JSON и отпр её в словарь Python
-            result = json.loads(raw_text[start:end])
-
-            # === ДОБАВЛЕНА ВАЛИДАЦИЯ (исправление BUG-02 и BUG-03) ===
-            # Проверяем структуру опроса
-            if "title" not in result:
-                result["title"] = "Опрос удовлетворённости"
-            if "questions" not in result or not isinstance(result["questions"], list):
-                result["questions"] = []
-
-            # Валидируем каждый вопрос
-            validated_questions = []
-            for i, q in enumerate(result["questions"]):
-                # Проверяем наличие category
-                if "category" not in q or q["category"] not in categories:
-                    # Если категория не указана или не из списка - исправляем
-                    if categories:
-                        q["category"] = categories[0]  # ставим первую категорию
-                    else:
-                        q["category"] = "общее"
-
-                # Проверяем тип вопроса (исправление BUG-03)
-                if "type" not in q or q["type"] not in ["rating", "open"]:
-                    q["type"] = "open"  # ставим open как базовый тип
-
-                # Проверяем наличие текста вопроса
-                if "text" not in q or not q["text"]:
-                    q["text"] = f"Оцените качество по категории '{q['category']}'"
-
-                validated_questions.append(q)
-
-            result["questions"] = validated_questions
+        resp = requests.post(LM_STUDIO_URL, json=payload, timeout=120)
+        raw_text = resp.json()["choices"][0]["message"]["content"]
+        match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+        if match:
+            result = json.loads(match.group(0))
             return result
-
-        else:
-            # Если не найден возвр ошибку и сырой ответ модели
-            return {"error": "No JSON found", "raw": raw_text}
+        return {"title": "Опрос", "questions": []}
     except Exception as e:
-        # любая ошибка - возвращаем её
-        return {"error": str(e), "raw": raw_text}
+        print(f"Ошибка генерации опроса: {e}")
+        return {"title": "Опрос", "questions": []}
+
+
+def generate_survey_with_features(user_journey: str, categories: List[str], selected_features: List[str]) -> Dict:
+    results = {
+        "title": "Опрос удовлетворенности",
+        "questions": [],
+        "selected_features": selected_features,
+        "analysis_results": {}
+    }
+    # Анализ клиент. пути выполняем только те функции, которые выбрал пользователь через галочки
+    # Каждая функция анализирует текст и сохраняет результат в словарь analysis_results
+    if "extract_contacts" in selected_features:
+        results["analysis_results"]["contacts"] = extract_contacts(user_journey)
+
+    if "extract_keywords" in selected_features:
+        results["analysis_results"]["keywords"] = extract_keywords(user_journey)
+
+    if "parse_data" in selected_features:
+        results["analysis_results"]["parsed_data"] = parsing_unstructured_data(user_journey)
+
+    if "create_tables" in selected_features:
+        results["analysis_results"]["tables"] = create_tables_from_data(user_journey)
+
+    if "classify" in selected_features:
+        results["analysis_results"]["classification"] = classify_by_categories(user_journey, categories)
+
+    if "sentiment_basic" in selected_features:
+        results["analysis_results"]["sentiment_basic"] = sentiment_analysis_basic(user_journey)
+
+    if "sentiment_advanced" in selected_features:
+        results["analysis_results"]["sentiment_advanced"] = sentiment_analysis_advanced(user_journey)
+
+    # Генерация персонал. опроса на основе анализа
+    survey = generate_personalized_survey(user_journey, categories, results["analysis_results"])
+    results["title"] = survey.get("title", "Персонализированный опрос")
+    results["questions"] = survey.get("questions", [])
+
+    return results
